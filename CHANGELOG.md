@@ -10,6 +10,14 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Corrigido
+
+- **Windows: as entregas mostram os arquivos que o agente entregou.** Caminhos com letra de disco (`C:\...`, `C:/...`,
+  `file:///C:/...`) eram tratados como endereço de site e ficavam de fora; agora entram, com as mesmas regras de
+  arquivo protegido. Nada muda no macOS e no Linux.
+- **Instalação: o `npm install` libera os scripts do `esbuild` e do `node-pty`** (`allowScripts` no `package.json`),
+  sem os quais o terminal interativo não funciona no npm 11+.
+
 ## [1.0.3] - 2026-10-16
 
 ### Corrigido

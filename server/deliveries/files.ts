@@ -49,9 +49,20 @@ export function fileType(path: string): { kind: DeliveryAttachmentKind; type: st
   return TYPES[extensionOf(path)];
 }
 
+/**
+ * No Windows, o caminho com barras normais (C:\a\b → C:/a/b, /C:/a → C:/a), que o fs aceita e que as regras daqui
+ * entendem. Nos outros sistemas, o caminho como veio.
+ */
+export function slashPath(path: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== 'win32') return path;
+  const p = path.replace(/\\/g, '/');
+  return /^\/[a-zA-Z]:\//.test(p) ? p.slice(1) : p;
+}
+
 /** Motivo para NÃO mostrar o caminho (só olhando o texto), ou undefined. */
 export function pathProblem(path: string): string | undefined {
-  if (!path || path.includes('\0') || !path.startsWith('/') || /(^|\/)\.\.(\/|$)/.test(path)) return tr('caminho inválido');
+  const absolute = path.startsWith('/') || /^[a-zA-Z]:\//.test(path);
+  if (!path || path.includes('\0') || !absolute || /(^|\/)\.\.(\/|$)/.test(path)) return tr('caminho inválido');
   if (!fileType(path)) return tr('tipo de arquivo que não se mostra aqui');
   if (SECRET_DIRS.test(path) || SECRET_NAMES.test(path)) return tr('arquivo protegido');
   return undefined;
@@ -67,7 +78,7 @@ export function checkFile(
   let real: string;
   let st: { isFile(): boolean; size: number };
   try {
-    real = fs.realpath(path);
+    real = slashPath(fs.realpath(path));
     st = fs.stat(real);
   } catch {
     return { error: tr('arquivo não encontrado') };
@@ -99,7 +110,7 @@ export function insideKnownFolder(
   path: string,
   opts: { accountDirs: readonly string[]; roots: readonly string[]; exists?: (p: string) => boolean },
 ): boolean {
-  if (opts.roots.some((r) => r && path.startsWith(`${r.replace(/\/+$/, '')}/`))) return true;
+  if (opts.roots.some((r) => r && path.startsWith(`${slashPath(r).replace(/\/+$/, '')}/`))) return true;
   const exists = opts.exists ?? existsSync;
   // Mesma codificação de sources/watcher.ts (encodeCwd): todo caractere não alfanumérico vira "-".
   for (let dir = dirname(path); dir.split('/').filter(Boolean).length >= 2; dir = dirname(dir)) {

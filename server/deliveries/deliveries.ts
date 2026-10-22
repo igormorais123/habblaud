@@ -12,7 +12,7 @@ import { tr } from '../../shared/i18n';
 import type { DeliveryAttachment, DeliveryInfo, Provider, RecentSession, TerminalEntry } from '../../shared/types';
 import type { TerminalParser } from '../sources/terminal';
 import { FileTail } from '../sources/tail';
-import { fileType, pathProblem } from './files';
+import { fileType, pathProblem, slashPath } from './files';
 
 /** Quanto do fim de cada transcript entra (os pedidos mais antigos de uma sessão longa ficam de fora). */
 export const TAIL_BYTES = 6 * 1024 * 1024;
@@ -28,7 +28,7 @@ const MIN_TEXT = 30;
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
 /** Caminhos de arquivo de ver citados na resposta: em links markdown ou soltos. */
 const LINK_RE = /\]\(\s*<?([^)\s>]+?\.(?:png|jpe?g|gif|webp|svg|pdf|mp4|mov|webm|html?))(?::\d+)?>?\s*\)/gi;
-const BARE_RE = /(?:^|[\s(`"'])(\/[^\s`"'()<>]+?\.(?:png|jpe?g|gif|webp|svg|pdf|mp4|mov|webm|html?))(?=$|[\s`"'),.;:!?])/gim;
+const BARE_RE = /(?:^|[\s(`"'])((?:\/|[a-zA-Z]:[\\/])[^\s`"'()<>]+?\.(?:png|jpe?g|gif|webp|svg|pdf|mp4|mov|webm|html?))(?=$|[\s`"'),.;:!?])/gim;
 
 export interface SessionSource {
   path: string;
@@ -131,12 +131,14 @@ export function linkedFiles(text: string, project?: string): string[] {
       // fica como veio
     }
     if (p.startsWith('file://')) p = p.slice(7);
-    if (/^[a-z]+:/i.test(p)) return;
+    p = slashPath(p);
+    // Esquema de URL (https:, mailto:...), menos a letra de disco do Windows (C:/).
+    if (/^[a-z]+:/i.test(p) && !(process.platform === 'win32' && /^[a-z]:\//i.test(p))) return;
     if (!isAbsolute(p)) {
       if (!project) return;
       p = join(project, p);
     }
-    p = normalize(p);
+    p = slashPath(normalize(p));
     if (!pathProblem(p)) out.add(p);
   };
   for (const m of text.matchAll(LINK_RE)) add(m[1]);
@@ -189,7 +191,7 @@ function sentFilesIn(line: string): Array<{ path: string; caption?: string }> {
     if (r?.type !== 'tool_use' || r.name !== 'SendUserFile') continue;
     const input = rec(r.input);
     const caption = typeof input?.caption === 'string' && input.caption.trim() ? input.caption.trim() : undefined;
-    for (const f of Array.isArray(input?.files) ? input.files : []) if (typeof f === 'string') out.push({ path: f, caption });
+    for (const f of Array.isArray(input?.files) ? input.files : []) if (typeof f === 'string') out.push({ path: slashPath(f), caption });
   }
   return out;
 }
